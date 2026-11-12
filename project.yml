@@ -42,6 +42,9 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true
         NSCameraUsageDescription: 需要使用相机进行实时目标检测
+        NSLocalNetworkUsageDescription: 将相机画面与 LiDAR 深度发送到局域网内的 Mac 进行轮廓识别
+        NSBonjourServices:
+          - _yolodepth._tcp
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UIStatusBarHidden: true

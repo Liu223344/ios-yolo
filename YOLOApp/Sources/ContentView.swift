@@ -3,6 +3,10 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = DetectorViewModel()
     @State private var showBenchmark = false
+    @State private var showSpeechSettings = false
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("personSpeechSpeed") private var speechRate = 1.25
+    @AppStorage("personSpeechVoice") private var speechVoice = ""
 
     var body: some View {
         ZStack {
@@ -26,7 +30,26 @@ struct ContentView: View {
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
             }
         }
-        .onAppear { viewModel.start() }
+        .onAppear {
+            updateSpeechSettings()
+            viewModel.start()
+        }
+        .onDisappear {
+            viewModel.announcesPeople = false
+            viewModel.announcements.stop()
+            viewModel.camera.stop()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                viewModel.announcesPeople = false
+                viewModel.announcements.stop()
+            }
+        }
+        .onChange(of: speechRate) { _, _ in updateSpeechSettings() }
+        .onChange(of: speechVoice) { _, _ in updateSpeechSettings() }
+        .sheet(isPresented: $showSpeechSettings) {
+            speechSettings
+        }
         .sheet(isPresented: $showBenchmark) {
             BenchmarkView(viewModel: viewModel)
         }
@@ -80,19 +103,22 @@ struct ContentView: View {
     }
 
     private var controlPanel: some View {
-        VStack(spacing: 12) {
+        let busy = viewModel.isLoading || viewModel.isBenchmarking
+        return VStack(spacing: 12) {
             Picker("检测模式", selection: $viewModel.detectionMode) {
                 ForEach(DetectionMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
+            .disabled(busy)
 
             if viewModel.detectionMode.runsYOLO {
-                yoloControls
+                yoloControls.disabled(busy)
+                personSpeechControls
             }
             if viewModel.detectionMode.runsAprilTag {
-                aprilTagControls
+                aprilTagControls.disabled(busy)
             }
 
             HStack {
@@ -126,11 +152,67 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
+            .disabled(busy)
         }
-        .disabled(viewModel.isLoading || viewModel.isBenchmarking)
         .padding(12)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
         .padding(.bottom, 8)
+    }
+
+    private var personSpeechControls: some View {
+        HStack {
+            Toggle("人车语音提醒", isOn: $viewModel.announcesPeople)
+            Button {
+                showSpeechSettings = true
+            } label: {
+                Label("语音设置", systemImage: "speaker.wave.2")
+            }
+            .buttonStyle(.bordered)
+        }
+        .font(.subheadline)
+    }
+
+    private var speechSettings: some View {
+        NavigationStack {
+            Form {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("语速")
+                        Spacer()
+                        Text(String(format: "%.2f×", speechRate))
+                            .monospacedDigit()
+                    }
+                    Slider(value: $speechRate, in: 0.75...1.60, step: 0.05)
+                        .accessibilityLabel("语速")
+                        .accessibilityValue(String(format: "%.2f 倍", speechRate))
+                }
+                Picker("中文语音", selection: $speechVoice) {
+                    Text("系统普通话").tag("")
+                    ForEach(PersonAnnouncements.voices, id: \.identifier) { voice in
+                        Text("\(voice.name) · \(voice.language)").tag(voice.identifier)
+                    }
+                }
+                Button {
+                    updateSpeechSettings()
+                    viewModel.announcements.preview()
+                } label: {
+                    Label("试听播报", systemImage: "play.circle")
+                }
+            }
+            .navigationTitle("语音设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { showSpeechSettings = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func updateSpeechSettings() {
+        viewModel.announcements.speedMultiplier = speechRate
+        viewModel.announcements.voiceIdentifier = speechVoice
     }
 
     @ViewBuilder

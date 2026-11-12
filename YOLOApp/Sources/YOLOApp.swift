@@ -4,7 +4,10 @@ import SwiftUI
 struct YOLOApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TabView {
+                ContentView().tabItem { Label("本机检测", systemImage: "viewfinder") }
+                LANCameraView().tabItem { Label("传到 Mac", systemImage: "desktopcomputer") }
+            }
                 .preferredColorScheme(.dark)
         }
     }

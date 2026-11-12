@@ -60,9 +60,15 @@ final class DetectorViewModel: ObservableObject {
         }
     }
 
+    let announcements = PersonAnnouncements()
+    @Published var announcesPeople = false {
+        didSet { if !announcesPeople { announcements.stop() } }
+    }
+
     @Published var detectionMode: DetectionMode = .yolo {
         didSet {
             let mode = detectionMode
+            if !mode.runsYOLO { announcesPeople = false }
             camera.videoQueue.async {
                 self.activeMode = mode
                 if !mode.runsAprilTag { self.tagTracker.reset() }
@@ -227,6 +233,7 @@ final class DetectorViewModel: ObservableObject {
         stats.fps = smoothedFPS
 
         DispatchQueue.main.async {
+            if self.announcesPeople { self.announcements.observe(detections) }
             self.detections = detections
             self.tags = tags
             self.imageSize = size
